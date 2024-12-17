@@ -1,0 +1,6 @@
+optimum-intel[openvino]
+datasets
+evaluate[evaluator]
+ipywidgets
+pillow
+torchaudio

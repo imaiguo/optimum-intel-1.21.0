@@ -1,0 +1,72 @@
+name: OpenVINO - Test
+
+on:
+  push:
+    branches:
+      - main
+      - v*-release
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        test-pattern:
+          [
+            "*modeling*",
+            "*diffusion*",
+            "*quantization*",
+            "*training*",
+            "*export*",
+          ]
+        transformers-version: ["4.36.0", "latest"]
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install .[openvino,openvino-tokenizers,diffusers,tests] transformers[testing]
+
+      - if: ${{ matrix.transformers-version != 'latest' }}
+        name: Downgrade Transformers and Accelerate
+        run: |
+          pip install transformers==${{ matrix.transformers-version }} accelerate==0.*
+
+      - if: ${{ matrix.test-pattern == '*modeling*' }}
+        name: Uninstall NNCF
+        run: |
+          pip uninstall -y nncf
+
+      - name: Test with Pytest
+        run: |
+          pytest tests/openvino/${{ matrix.test-pattern }} --durations=0
+        env:
+          HF_HUB_READ_TOKEN: ${{ secrets.HF_HUB_READ_TOKEN }}
+
+      - if: ${{ matrix.test-pattern == '*modeling*' }}
+        name: Install dependencies (nightly)
+        run: |
+          pip install --upgrade --pre openvino openvino-tokenizers --extra-index-url https://storage.openvinotoolkit.org/simple/wheels/nightly
+
+      - if: ${{ matrix.test-pattern == '*modeling*' }}
+        name: Test with Pytest (nightly)
+        run: |
+          pytest tests/openvino/test_modeling_basic.py --durations=0
