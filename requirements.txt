@@ -1,0 +1,5 @@
+loguru
+librosa
+openvino_genai
+optimum[neural-compressor]
+optimum[openvino]
